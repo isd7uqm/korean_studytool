@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>韩语彦文积木 (带语速控制)</title>
+    <style>
+        :root {
+            --bg-color: #f0f2f5;
+            --primary-color: #4a90e2;
+            --tile-bg: #ffffff;
+            --initial-color: #ff7675;
+            --vowel-color: #55efc4;
+            --final-color: #fdcb6e;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; 
+        }
+
+        /* 上半部分：固定在顶部 */
+        .top-board {
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: var(--bg-color);
+            padding: 15px 20px 10px 20px;
+            z-index: 10;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+        }
+
+        /* 下半部分：独立滚动区域 */
+        .scroll-board {
+            flex-grow: 1;
+            overflow-y: auto; 
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        h1 { color: #2d3436; margin: 0 0 5px 0; font-size: 24px; }
+        p { color: #636e72; margin: 0 0 15px 0; font-size: 14px; }
+
+        .workbench {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            background: #dfe6e9;
+            padding: 20px 30px;
+            border-radius: 20px;
+        }
+
+        .drop-zone {
+            width: 80px;
+            height: 85px;
+            border: 3px dashed #b2bec3;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            background: rgba(255,255,255,0.5);
+            transition: all 0.3s;
+            position: relative;
+            color: #2d3436;
+        }
+
+        .drop-zone .romaji-hint { font-size: 13px; color: #b2bec3; margin-top: 2px; }
+        .drop-zone.drag-over { background: #fff; border-color: var(--primary-color); transform: scale(1.05); }
+        .drop-zone::after {
+            content: attr(data-label);
+            position: absolute;
+            bottom: -22px;
+            font-size: 11px;
+            color: #636e72;
+            white-space: nowrap;
+        }
+
+        .btn-clear-final {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            width: 22px;
+            height: 22px;
+            background: #ff7675;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            display: none; 
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .result-container {
+            text-align: center;
+            background: white;
+            padding: 10px 40px 15px 40px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        #result-char { font-size: 70px; font-weight: bold; color: #2d3436; margin: 0; cursor: pointer; transition: transform 0.2s; line-height: 1.1; }
+        #result-char:hover { transform: scale(1.05); }
+        #result-romaji { font-size: 20px; color: var(--primary-color); font-family: monospace; font-weight: bold; letter-spacing: 2px; margin-bottom: 15px; }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-play {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 25px;
+            border-radius: 50px;
+            font-size: 14px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(74, 144, 226, 0.3);
+            transition: background 0.2s;
+            width: 100%;
+        }
+        .btn-play:hover { background-color: #357abd; }
+
+        /* 新增的语速控制条样式 */
+        .speed-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #636e72;
+        }
+        .speed-control input[type=range] {
+            width: 80px;
+            cursor: pointer;
+        }
+
+        .palette {
+            width: 100%;
+            max-width: 800px;
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+        }
+
+        .section-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; color: #b2bec3; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+        .tiles { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+
+        .tile {
+            width: 45px;
+            height: 50px;
+            background: var(--tile-bg);
+            border: 2px solid #eee;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: grab;
+            user-select: none;
+            transition: all 0.2s;
+        }
+
+        .tile .char { font-size: 20px; font-weight: bold; color: #2d3436; }
+        .tile .rom { font-size: 11px; color: #b2bec3; }
+        .tile:active { cursor: grabbing; }
+        .tile.initial { border-bottom: 4px solid var(--initial-color); }
+        .tile.vowel { border-bottom: 4px solid var(--vowel-color); }
+        .tile.final { border-bottom: 4px solid var(--final-color); }
+        .tile:hover { transform: translateY(-3px); box-shadow: 0 5px 10px rgba(0,0,0,0.1); border-color: #ccc; }
+
+    </style>
+</head>
+<body>
+
+    <div class="top-board">
+        <h1>彦文积木 🧱</h1>
+        <p>支持发音速度调节，听清顿音细节</p>
+
+        <div class="workbench">
+            <div id="initial-target" class="drop-zone" data-label="辅音 (初声)" ondrop="drop(event, 'initial')" ondragover="allowDrop(event)">
+                <span class="char">?</span><span class="romaji-hint"></span>
+            </div>
+            <div id="vowel-target" class="drop-zone" data-label="元音 (中声)" ondrop="drop(event, 'vowel')" ondragover="allowDrop(event)">
+                <span class="char">?</span><span class="romaji-hint"></span>
+            </div>
+            <div id="final-target" class="drop-zone" data-label="收音 (终声 - 可选)" ondrop="drop(event, 'final')" ondragover="allowDrop(event)">
+                <button class="btn-clear-final" id="clear-final-btn" onclick="clearFinal()">×</button>
+                <span class="char" style="color:#ccc">-</span><span class="romaji-hint"></span>
+            </div>
+        </div>
+
+        <div class="result-container">
+            <div id="result-char" onclick="speak()">가</div>
+            <div id="result-romaji">[ ga ]</div>
+            
+            <div class="controls">
+                <button class="btn-play" onclick="speak()">🔊 播放发音</button>
+                <div class="speed-control">
+                    <span>🐢</span>
+                    <input type="range" id="speech-rate" min="0.5" max="1.5" step="0.1" value="1.0" oninput="updateRateLabel(this.value)">
+                    <span>🐇</span>
+                    <span id="rate-label" style="display:inline-block; width:30px; text-align:right;">1.0x</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="scroll-board">
+        <div class="palette">
+            <div class="section-title" style="color: var(--initial-color)">初声 (辅音)</div>
+            <div class="tiles" id="initial-pool"></div>
+            
+            <div class="section-title" style="color: var(--vowel-color)">中声 (元音)</div>
+            <div class="tiles" id="vowel-pool"></div>
+
+            <div class="section-title" style="color: var(--final-color)">终声 / 收音 (底部)</div>
+            <div class="tiles" id="final-pool"></div>
+        </div>
+    </div>
+
+    <script>
+        const initialsData = [
+            { char: 'ㄱ', rom: 'g' }, { char: 'ㄲ', rom: 'kk' }, { char: 'ㄴ', rom: 'n' }, { char: 'ㄷ', rom: 'd' }, { char: 'ㄸ', rom: 'tt' }, { char: 'ㄹ', rom: 'r' }, { char: 'ㅁ', rom: 'm' }, { char: 'ㅂ', rom: 'b' }, { char: 'ㅃ', rom: 'pp' }, { char: 'ㅅ', rom: 's' }, { char: 'ㅆ', rom: 'ss' }, { char: 'ㅇ', rom: '' }, { char: 'ㅈ', rom: 'j' }, { char: 'ㅉ', rom: 'jj' }, { char: 'ㅊ', rom: 'ch' }, { char: 'ㅋ', rom: 'k' }, { char: 'ㅌ', rom: 't' }, { char: 'ㅍ', rom: 'p' }, { char: 'ㅎ', rom: 'h' }
+        ];
+
+        const vowelsData = [
+            { char: 'ㅏ', rom: 'a' }, { char: 'ㅐ', rom: 'ae' }, { char: 'ㅑ', rom: 'ya' }, { char: 'ㅒ', rom: 'yae' }, { char: 'ㅓ', rom: 'eo' }, { char: 'ㅔ', rom: 'e' }, { char: 'ㅕ', rom: 'yeo' }, { char: 'ㅖ', rom: 'ye' }, { char: 'ㅗ', rom: 'o' }, { char: 'ㅘ', rom: 'wa' }, { char: 'ㅙ', rom: 'wae' }, { char: 'ㅚ', rom: 'oe' }, { char: 'ㅛ', rom: 'yo' }, { char: 'ㅜ', rom: 'u' }, { char: 'ㅝ', rom: 'wo' }, { char: 'ㅞ', rom: 'we' }, { char: 'ㅟ', rom: 'wi' }, { char: 'ㅠ', rom: 'yu' }, { char: 'ㅡ', rom: 'eu' }, { char: 'ㅢ', rom: 'ui' }, { char: 'ㅣ', rom: 'i' }
+        ];
+
+        const finalsData = [
+            { char: '', rom: '' },
+            { char: 'ㄱ', rom: 'k' }, { char: 'ㄲ', rom: 'k' }, { char: 'ㄳ', rom: 'k' }, { char: 'ㄴ', rom: 'n' }, { char: 'ㄵ', rom: 'n' }, { char: 'ㄶ', rom: 'n' }, { char: 'ㄷ', rom: 't' }, { char: 'ㄹ', rom: 'l' }, { char: 'ㄺ', rom: 'k' }, { char: 'ㄻ', rom: 'm' }, { char: 'ㄼ', rom: 'p' }, { char: 'ㄽ', rom: 'l' }, { char: 'ㄾ', rom: 'l' }, { char: 'ㄿ', rom: 'p' }, { char: 'ㅀ', rom: 'l' }, { char: 'ㅁ', rom: 'm' }, { char: 'ㅂ', rom: 'p' }, { char: 'ㅄ', rom: 'p' }, { char: 'ㅅ', rom: 't' }, { char: 'ㅆ', rom: 't' }, { char: 'ㅇ', rom: 'ng' }, { char: 'ㅈ', rom: 't' }, { char: 'ㅊ', rom: 't' }, { char: 'ㅋ', rom: 'k' }, { char: 'ㅌ', rom: 't' }, { char: 'ㅍ', rom: 'p' }, { char: 'ㅎ', rom: 't' }
+        ];
+
+        let currentInitialIdx = 0; 
+        let currentVowelIdx = 0;   
+        let currentFinalIdx = 0;
+        let currentRate = 1.0; // 记录当前语速   
+
+        function init() {
+            const iPool = document.getElementById('initial-pool');
+            initialsData.forEach((item, index) => iPool.appendChild(createTile(item, index, 'initial')));
+
+            const vPool = document.getElementById('vowel-pool');
+            vowelsData.forEach((item, index) => vPool.appendChild(createTile(item, index, 'vowel')));
+
+            const fPool = document.getElementById('final-pool');
+            for (let i = 1; i < finalsData.length; i++) {
+                fPool.appendChild(createTile(finalsData[i], i, 'final'));
+            }
+            
+            document.querySelector('#initial-target .char').innerText = initialsData[0].char;
+            document.querySelector('#initial-target .romaji-hint').innerText = initialsData[0].rom;
+            document.querySelector('#vowel-target .char').innerText = vowelsData[0].char;
+            document.querySelector('#vowel-target .romaji-hint').innerText = vowelsData[0].rom;
+            
+            updateHangul();
+        }
+
+        function createTile(item, index, type) {
+            const div = document.createElement('div');
+            div.className = `tile ${type}`;
+            div.draggable = true;
+            div.innerHTML = `<span class="char">${item.char}</span><span class="rom">${item.rom || '-'}</span>`;
+            div.ondragstart = (e) => {
+                e.dataTransfer.setData("index", index);
+                e.dataTransfer.setData("type", type);
+                e.dataTransfer.setData("char", item.char);
+                e.dataTransfer.setData("rom", item.rom);
+            };
+            return div;
+        }
+
+        function allowDrop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('drag-over');
+        }
+
+        document.querySelectorAll('.drop-zone').forEach(zone => {
+            zone.ondragleave = (e) => e.currentTarget.classList.remove('drag-over');
+        });
+
+        function drop(e, targetType) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+            
+            const type = e.dataTransfer.getData("type");
+            if (type !== targetType) return alert("请将正确的类型放入对应的方框中！");
+
+            const index = parseInt(e.dataTransfer.getData("index"));
+            const char = e.dataTransfer.getData("char");
+            const rom = e.dataTransfer.getData("rom");
+
+            const targetEl = document.getElementById(type + '-target');
+            targetEl.querySelector('.char').innerText = char;
+            targetEl.querySelector('.char').style.color = '#2d3436';
+            targetEl.querySelector('.romaji-hint').innerText = rom;
+
+            if (type === 'initial') currentInitialIdx = index;
+            if (type === 'vowel') currentVowelIdx = index;
+            if (type === 'final') {
+                currentFinalIdx = index;
+                document.getElementById('clear-final-btn').style.display = 'flex';
+            }
+
+            updateHangul();
+        }
+
+        function clearFinal() {
+            currentFinalIdx = 0;
+            const finalEl = document.getElementById('final-target');
+            finalEl.querySelector('.char').innerText = '-';
+            finalEl.querySelector('.char').style.color = '#ccc';
+            finalEl.querySelector('.romaji-hint').innerText = '';
+            document.getElementById('clear-final-btn').style.display = 'none';
+            updateHangul();
+        }
+
+        function updateHangul() {
+            const code = 0xAC00 + (currentInitialIdx * 588) + (currentVowelIdx * 28) + currentFinalIdx;
+            const hangulChar = String.fromCharCode(code);
+            document.getElementById('result-char').innerText = hangulChar;
+
+            const initialRom = initialsData[currentInitialIdx].rom;
+            const vowelRom = vowelsData[currentVowelIdx].rom;
+            const finalRom = finalsData[currentFinalIdx].rom;
+            document.getElementById('result-romaji').innerText = `[ ${initialRom}${vowelRom}${finalRom} ]`;
+        }
+
+        // 动态更新滑块旁边的数值显示
+        function updateRateLabel(val) {
+            currentRate = parseFloat(val);
+            // 格式化确保显示一位小数，如 1.0x
+            document.getElementById('rate-label').innerText = currentRate.toFixed(1) + 'x';
+        }
+
+        function speak() {
+            const text = document.getElementById('result-char').innerText;
+            const msg = new SpeechSynthesisUtterance(text);
+            msg.lang = 'ko-KR'; 
+            msg.rate = currentRate; // 在这里应用你选择的语速！
+            window.speechSynthesis.cancel(); 
+            window.speechSynthesis.speak(msg);
+        }
+
+        init();
+    </script>
+</body>
+</html>
